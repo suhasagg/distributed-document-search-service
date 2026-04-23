@@ -1,0 +1,36 @@
+{
+  "index_patterns": ["documents*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 3,
+      "number_of_replicas": 1,
+      "refresh_interval": "1s",
+      "analysis": {
+        "analyzer": {
+          "default_text_analyzer": {
+            "type": "standard"
+          }
+        }
+      }
+    },
+    "mappings": {
+      "dynamic": "strict",
+      "properties": {
+        "id": { "type": "keyword" },
+        "tenantId": { "type": "keyword" },
+        "title": {
+          "type": "text",
+          "analyzer": "standard",
+          "fields": {
+            "keyword": { "type": "keyword", "ignore_above": 256 }
+          }
+        },
+        "content": {
+          "type": "text",
+          "analyzer": "standard"
+        }
+      }
+    }
+  },
+  "priority": 100
+}

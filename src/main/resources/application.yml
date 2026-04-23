@@ -1,0 +1,66 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/docsearch
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+  kafka:
+    bootstrap-servers: kafka:9092
+
+    consumer:
+      group-id: doc-search-indexer
+      auto-offset-reset: earliest
+      enable-auto-commit: true
+      properties:
+        spring.json.trusted.packages: "com.example.search.messaging"
+
+    producer:
+      acks: all
+      retries: 10
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        linger.ms: 5
+        compression.type: snappy
+
+    listener:
+      missing-topics-fatal: false
+
+  jackson:
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+search:
+  elasticsearch:
+    host: elasticsearch
+    port: 9200
+    index: documents
+
+rate-limit:
+  requests-per-minute: 120
+
+indexing:
+  topic:
+    documents: document-index-events
