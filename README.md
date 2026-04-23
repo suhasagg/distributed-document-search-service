@@ -571,220 +571,234 @@ Expected:
 ```text
 404
 ```
+# Document Search System – Advanced Features and Production Enhancements
 
-## 11. Bonus Features Implemented
+# 11.1 Fuzzy Search
 
-### 11.1 Fuzzy Search
+## What it does
+- The system supports fuzzy matching using Elasticsearch’s fuzziness: AUTO, allowing approximate matches for user queries.
 
-What it does
+## Why it matters
 
-The system supports fuzzy matching using Elasticsearch’s fuzziness: AUTO, allowing approximate matches for user queries.
+- Users frequently make typos 
+- Queries may be incomplete or misspelled  
+- Exact-match search reduces recall  
 
-Why it matters
+- Improves user experience  
+- Improves search recall  
+- Improves robustness to input errors  
 
-In real-world systems:
-
-Users frequently make typos
-Queries may be incomplete or misspelled
-Exact-match search reduces recall
-
-Fuzzy search improves:
-
-User experience
-Search recall
-Robustness to input errors
-
-Implementation
-Implemented using multi_match query with fuzziness
-Applied to both:
-title (boosted)
-content
+## Implementation
+- Implemented using multi_match query with fuzziness  
+- Applied to:
+  - title (boosted)
+  - content  
 
 ```bash
-curl "http://localhost:8080/search?q=distrbuted&size=10" \
-  -H "X-Tenant-ID: tenant-a"
+curl "http://localhost:8080/search?q=distrbuted&size=10"   -H "X-Tenant-ID: tenant-a"
 ```
-Expected:
 
-Matches "distributed" despite typo
+## Expected
+- Matches "distributed" despite typo  
 
-Trade-offs
-Slight increase in query cost
-Can introduce irrelevant matches if overused
+## Trade-offs
+- Slight increase in query cost  
+- Can introduce irrelevant matches if overused  
 
-Production improvement
-Enable fuzziness only for short queries
-Disable for long queries to reduce cost
+## Production improvement
+- Enable fuzziness only for short queries  
+- Disable for long queries to reduce cost  
 
-### 11.2 Highlighting
-What it does
+---
 
-Search responses include highlighted snippets showing matched text.
+# 11.2 Highlighting
 
-Why it matters
+## What it does
+- Search responses include highlighted snippets showing matched text.
 
-Improves result explainability
-Helps users quickly understand relevance
-Common feature in enterprise search systems (Google, Elastic, etc.)
+## Why it matters
+- Improves result explainability  
+- Helps users quickly understand relevance  
+- Common feature in enterprise search systems  
 
-Implementation
-Elasticsearch highlight API used
-Fields:
-title
-content
+## Implementation
+- Elasticsearch highlight API used  
+- Fields:
+  - title  
+  - content  
 
 ```bash
-curl "http://localhost:8080/search?q=redis&size=10" \
-  -H "X-Tenant-ID: tenant-a"
-```
-The `snippet` field may contain highlighted matched fragments.
-
-Trade-offs
-Slightly higher response size
-Minor latency increase
-Production improvement
-Limit highlight size
-Use fragment size tuning
-
-### 11.3 Benchmark Script
-Included:
-```text
-benchmarks/k6-search-smoke.js
+curl "http://localhost:8080/search?q=redis&size=10"   -H "X-Tenant-ID: tenant-a"
 ```
 
-Run:
+## Output
+- snippet field may contain highlighted matched fragments  
+
+## Trade-offs
+- Slightly higher response size  
+- Minor latency increase  
+
+## Production improvement
+- Limit highlight size  
+- Use fragment size tuning  
+
+---
+
+# 11.3 Benchmark Script
+
+## Included
+- benchmarks/k6-search-smoke.js  
+
+## Run
 ```bash
 k6 run benchmarks/k6-search-smoke.js
 ```
 
-Or with environment variables:
+## With environment variables
 ```bash
 BASE_URL=http://localhost:8080 TENANT=tenant-a QUERY=distributed k6 run benchmarks/k6-search-smoke.js
 ```
 
-Benchmark interpretation:
-If the benchmark uses one tenant and exceeds the configured per-tenant limit, some responses will be throttled. That is expected and validates rate limiting.
+## Benchmark interpretation
+- If tenant exceeds limit → throttling expected  
+- Validates rate limiting  
 
-## 11.4 Benchmark Notes
+---
 
-A k6 run showed that successful requests were very fast, but a high failure rate can appear when the test intentionally exceeds the configured per-tenant rate limit.
+# 11.4 Benchmark Notes
 
-This is not only a performance signal but also proof that the per-tenant protection logic is working.
+- Successful requests are very fast  
+- High failure rate under heavy load is expected  
+- Confirms:
+  - System stability  
+  - Rate limiting working correctly  
 
+---
 
+# 11.5 Blue-Green Deployment Strategy
 
-### 11.4 Blue-Green Deployment Strategy
-What it is
+## What it is
+- Zero-downtime deployment using:
+  - Blue (live)
+  - Green (new version)
 
-A zero-downtime deployment strategy using two environments:
+## Flow
+- Deploy green  
+- Run validation:
+  - health check  
+  - API tests  
+  - indexing + search validation  
+- Shift traffic gradually  
+- Rollback if needed  
 
-Blue (current live)
-Green (new version)
-Flow
-Deploy new version as green
-Run validation tests:
-health check
-API tests
-indexing + search validation
-Shift traffic gradually
-If issue occurs → instant rollback to blue
-Why it matters
-Zero downtime deployments
-Safe rollback
-Production stability
-Production implementation
+## Why it matters
+- Zero downtime  
+- Safe rollback  
+- Production stability  
 
-Using:
+## Implementation
+- Kubernetes + service routing  
+- Load balancer switching  
 
-Kubernetes + Service routing
-or Load balancer switching
-Advanced upgrade
-Canary deployment (partial traffic)
-Feature flags for gradual rollout
+## Advanced
+- Canary deployment  
+- Feature flags  
 
-### 11.5 Cost Optimization Strategy
-Key principle
+---
 
-Scale each component independently, not uniformly.
+# 11.6 Cost Optimization Strategy
 
-API Layer
-Stateless → horizontal scaling
-Auto-scale based on CPU + latency
-Use spot instances for non-critical workloads
-PostgreSQL
-Keep only canonical data
-Avoid using as search engine
-Add read replicas only if needed
-Elasticsearch
-Most expensive component → optimize carefully
+## Principle
+- Scale components independently  
 
-Optimizations:
+## API Layer
+- Stateless  
+- Horizontal scaling  
+- Auto-scale on CPU + latency  
+- Use spot instances  
 
-Right shard count (avoid over-sharding)
-Increase refresh interval for heavy indexing
-Use hot/warm architecture
-Archive old data
-Redis
-Use short TTLs
-Cache only high-value queries
-Avoid caching empty results
-Kafka
-Partition count based on throughput
-Avoid over-provisioning brokers
-Use managed Kafka if ops overhead is high
-Cloud-level optimization
-Use autoscaling groups
-Use reserved instances for steady load
-Use spot instances for indexing jobs
+## PostgreSQL
+- Store canonical data  
+- Not used for search  
+- Add replicas if needed  
 
-### 11.7 Rate Limiting (Abuse Protection)
-What it does
+## Elasticsearch
+- Most expensive component  
+- Optimize:
+  - shard count  
+  - refresh interval  
+  - hot/warm architecture  
+  - archive old data  
 
-Prevents a single tenant from overwhelming the system.
+## Redis
+- Short TTL  
+- Cache high-value queries  
+- Avoid empty results  
 
-Implementation
-Redis-based counters
-Per-tenant request window
-Why it matters
-Protects shared infrastructure
-Ensures fairness across tenants
-Observed behavior
-High load → throttling triggered
-System remains stable
-11.8 Cache Strategy Optimization
-Current strategy
+## Kafka
+- Partition based on throughput  
+- Avoid over-provisioning  
+- Use managed Kafka if needed  
 
-Cache key:
+## Cloud
+- Autoscaling groups  
+- Reserved instances  
+- Spot instances  
 
-search:{tenant}:{queryHash}:{size}
-Cache only non-empty results
-TTL-based expiration
-Why not cache empty results
+---
 
-Because of eventual consistency:
+# 11.7 Rate Limiting
 
-A document may be indexed shortly after a query
-Cached empty result would hide it
-Production improvements
-Cache invalidation on write/delete
-Query normalization
-Adaptive TTL based on query popularity
+## What it does
+- Prevents tenant abuse  
 
-### 11.9 Real-world Production Enhancements (Future Scope)
+## Implementation
+- Redis counters  
+- Per-tenant window  
 
-These are not implemented but clearly designed for:
+## Why it matters
+- Fairness  
+- Infra protection  
 
-Reliability
-Dead-letter queue for Kafka
-Retry with exponential backoff
-Idempotent consumers
-Observability
-Prometheus metrics
-Grafana dashboards
-Distributed tracing
-Security
-JWT authentication
-Tenant-level authorization policies
-Data correctness
-Outbox pattern for reliable event publishing
+## Behavior
+- High load → throttling  
+- System stable  
 
+---
+
+# 11.8 Cache Strategy
+
+## Current strategy
+- search:{tenant}:{queryHash}:{size}  
+- Cache non-empty results  
+- TTL-based  
+
+## Why not cache empty
+- Eventual consistency  
+- Prevents missing new data  
+
+## Improvements
+- Cache invalidation  
+- Query normalization  
+- Adaptive TTL  
+
+---
+
+# 11.9 Future Enhancements
+
+## Reliability
+- Dead-letter queue  
+- Retry with backoff  
+- Idempotent consumers  
+
+## Observability
+- Prometheus  
+- Grafana  
+- Tracing  
+
+## Security
+- JWT authentication  
+- Tenant authorization  
+
+## Data correctness
+- Outbox pattern  
